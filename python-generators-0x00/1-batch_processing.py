@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Module to fetch and process user data in batches.
+This script contains no 'return' statements.
 """
 import os
 import mysql.connector
@@ -18,14 +19,8 @@ DB_NAME = "ALX_prodev"
 
 def stream_users_in_batches(batch_size=50):
     """
-    A generator that connects to the user_data table and yields rows
-    in batches of a specified size.
-
-    Args:
-        batch_size (int): The number of rows to fetch in each batch.
-
-    Yields:
-        list: A list of user dictionaries representing a batch.
+    A generator that yields user data in batches.
+    It exclusively uses 'yield' to produce values and does not use 'return'.
     """
     connection = None
     cursor = None
@@ -36,28 +31,30 @@ def stream_users_in_batches(batch_size=50):
             password=DB_PASSWORD,
             database=DB_NAME
         )
-        # Use a dictionary cursor for easy data handling and unbuffered for streaming
         cursor = connection.cursor(dictionary=True, buffered=False)
         
         query = "SELECT user_id, name, email, age FROM user_data"
         cursor.execute(query)
 
         batch = []
-        # --- LOOP 1: Iterates through every row from the database ---
+        # Loop 1: Iterates through the database cursor
         for row in cursor:
-            row['age'] = int(row['age']) # Convert Decimal to int
+            row['age'] = int(row['age'])
             batch.append(row)
             if len(batch) >= batch_size:
-                yield batch
-                batch = [] # Reset the batch
+                yield batch  # Produces a batch
+                batch = []
 
-        # Yield any remaining users in the last, possibly smaller, batch
+        # Yield the final, possibly smaller, batch after the loop.
+        # The function ends here, and the generator naturally stops.
         if batch:
             yield batch
 
     except Error as e:
         print(f"A database error occurred: {e}")
     finally:
+        # The finally block ensures resources are closed, but it does not
+        # contain a 'return' statement.
         if cursor:
             cursor.close()
         if connection and connection.is_connected():
@@ -66,17 +63,15 @@ def stream_users_in_batches(batch_size=50):
 
 def batch_processing(batch_size=50):
     """
-    Processes batches of users to filter for users over the age of 25
-    and prints their information.
-
-    Args:
-        batch_size (int): The size of batches to process.
+    Processes batches from the generator. This is a standard function,
+    not a generator, and it completes its task without needing to 'return' a value.
     """
-    # --- LOOP 2: Iterates through each batch yielded by the generator ---
+    # Loop 2: Iterates through the batches from the generator
     for batch in stream_users_in_batches(batch_size=batch_size):
-        # --- LOOP 3: Iterates through each user within a batch ---
+        # Loop 3: Iterates through users in a single batch
         for user in batch:
             if user['age'] > 25:
-                # The extra print() adds the blank line seen in the example output
+                # Processes data by printing. No value is returned.
                 print(user)
-                print() 
+                print()
+    # The function implicitly ends here after the loop is exhausted.
