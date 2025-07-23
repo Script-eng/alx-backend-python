@@ -1,0 +1,66 @@
+# # # # # # # # # # # # # # # # # # # # # #
+#      Standard Django .gitignore         #
+# # # # # # # # # # # # # # # # # # # # # #
+
+# Secrets and Environment Variables
+# Never commit credentials or local configuration!
+.env
+local_settings.py
+
+
+# Virtual Environment
+# The venv contains installed packages and is specific to the local machine.
+venv/
+env/
+.venv/
+
+
+# Python and Django specific files
+# These are generated cache or compiled files.
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+
+# Django's default database file
+# You should be using a production database (like PostgreSQL or MySQL),
+# but this prevents the local dev database from ever being committed.
+db.sqlite3
+db.sqlite3-journal
+
+
+# User-uploaded media files
+# Typically, you don't version control user uploads.
+media/
+
+
+# Collected static files for deployment
+# The 'collectstatic' command gathers all static files here.
+# The source static files in your apps ARE version controlled.
+staticfiles/
+
+
+# Log files
+*.log
+logs/
+
+
+# IDE and Editor Folders
+# Prevents sharing your personal editor configuration.
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+
+# OS-generated files
+# Prevents clutter from macOS and Windows.
+.DS_Store
+Thumbs.db
+
+
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
