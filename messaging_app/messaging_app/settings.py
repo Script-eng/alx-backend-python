@@ -37,9 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.rest_framework',
+    'rest_framework',
     'messaging_app',  # Assuming this is the main app name
-    'apps.messaging_app.chat',  # Assuming this is the app name
+    'chats',
     'django_filters',
 ]
 
