@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.rest_framework',
     'messaging_app',  # Assuming this is the main app name
-    'apps.messaging_app.chat'  # Assuming this is the app name
+    'apps.messaging_app.chat',  # Assuming this is the app name
+    'django_filters',
 ]
 
 MIDDLEWARE = [
