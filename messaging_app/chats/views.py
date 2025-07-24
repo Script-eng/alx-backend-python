@@ -59,15 +59,19 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        This view should return a list of all messages in conversations
-        that the current user is a part of.
+        This view should return a list of all messages for the
+        conversation as determined by the `conversation_pk` from the URL.
         """
-        user_conversations = self.request.user.conversations.all()
-        return Message.objects.filter(conversation__in=user_conversations)
+        # Get the conversation_pk from the URL kwargs
+        conversation_pk = self.kwargs['conversation_pk']
+        return Message.objects.filter(conversation_id=conversation_pk)
 
     def perform_create(self, serializer):
         """
-        Override to automatically set the sender of the message
-        to the currently authenticated user.
+        Set the sender and the conversation based on the URL.
         """
-        serializer.save(sender=self.request.user)
+        conversation_pk = self.kwargs['conversation_pk']
+        serializer.save(
+            sender=self.request.user,
+            conversation_id=conversation_pk
+        )
