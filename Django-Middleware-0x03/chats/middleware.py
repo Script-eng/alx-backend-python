@@ -19,6 +19,7 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
+
 # --- MIDDLEWARE CLASS 1: Request Logging ---
 # This middleware logs every request to a file.
 
@@ -68,7 +69,7 @@ class RestrictAccessByTimeMiddleware:
         return response
 
 
-# --- MIDDLEWARE CLASS 3: Rate Limiting (Named as per instructions) ---
+# --- MIDDLEWARE CLASS 3: Rate Limiting (Named OffensiveLanguageMiddleware) ---
 # This middleware limits the number of POST requests per IP address.
 
 class OffensiveLanguageMiddleware:
@@ -89,25 +90,45 @@ class OffensiveLanguageMiddleware:
             # Cannot rate-limit without an IP, so let it pass.
             return self.get_response(request)
         
-        # Create a unique cache key for the IP address.
         cache_key = f"rate_limit_{ip_address}"
-        
-        # Get the history of request timestamps from the cache.
         request_history = cache.get(cache_key, [])
-        
         current_timestamp = time.time()
         
         # Filter out old timestamps to create a "sliding window".
         valid_requests = [t for t in request_history if t > current_timestamp - self.TIME_WINDOW]
         
-        # Check if the limit has been exceeded.
         if len(valid_requests) >= self.REQUEST_LIMIT:
             return HttpResponseForbidden("Rate limit exceeded. Please try again later.")
             
-        # Add the current request's timestamp and save it back to the cache.
         valid_requests.append(current_timestamp)
         cache.set(cache_key, valid_requests, self.TIME_WINDOW + 5)
         
-        # If the check passes, allow the request to continue.
+        response = self.get_response(request)
+        return response
+
+
+# --- MIDDLEWARE CLASS 4: Role-based Permission Enforcement ---
+# This middleware checks a user's role before allowing access to certain paths.
+
+class RolepermissionMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.restricted_paths = ['/admin/'] # Add any other paths that need protection
+        self.allowed_roles = ['admin', 'moderator']
+
+    def __call__(self, request):
+        is_path_restricted = any(request.path.startswith(path) for path in self.restricted_paths)
+
+        if not is_path_restricted:
+            return self.get_response(request)
+
+        if not request.user.is_authenticated:
+            return HttpResponseForbidden("Access Denied. You must be logged in.")
+        
+        user_role = getattr(request.user, 'role', None)
+
+        if user_role not in self.allowed_roles:
+            return HttpResponseForbidden("Access Denied. You do not have the required permissions.")
+
         response = self.get_response(request)
         return response
