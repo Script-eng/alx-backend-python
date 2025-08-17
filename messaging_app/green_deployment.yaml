@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # A specific name for the green version
+  name: django-app-green
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: django-app
+      # Selector now includes the version
+      version: green
+  template:
+    metadata:
+      labels:
+        app: django-app
+        # Pods are labeled as green
+        version: green
+    spec:
+      containers:
+        - name: django-app
+          image: messaging-app:latest # In a real scenario, this might be messaging-app:v2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: mysql-secrets
+          env:
+            - name: MYSQL_HOST
+              value: "mysql-service"
+            - name: DEPLOYMENT_COLOR
+              value: "green" # An env var to identify this version

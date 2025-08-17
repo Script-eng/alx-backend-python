@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# ==============================================================================
+# kubctl-0x02: A script to perform a Blue-Green deployment.
+# ==============================================================================
+
+# --- Define colors for better output ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE_COLOR='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${GREEN}### Blue-Green Deployment Script ###${NC}"
+
+# --- Phase 1: Deploy Initial Blue Version ---
+echo -e "\n${YELLOW}[1/4] Deploying the initial 'Blue' version...${NC}"
+kubectl apply -f blue_deployment.yaml
+kubectl apply -f kubeservice.yaml
+
+echo "--> Waiting for Blue deployment to become ready..."
+kubectl rollout status deployment/django-app-blue --timeout=2m
+
+echo -e "${BLUE_COLOR}--> Blue version is now live.${NC}"
+kubectl get pods -l version=blue
+
+
+# --- Phase 2: Deploy New Green Version (Without directing traffic) ---
+echo -e "\n${YELLOW}[2/4] Deploying the new 'Green' version alongside Blue...${NC}"
+kubectl apply -f green_deployment.yaml
+
+echo "--> Waiting for Green deployment to become ready..."
+kubectl rollout status deployment/django-app-green --timeout=2m
+
+echo -e "${GREEN}--> Green version is running but not receiving live traffic.${NC}"
+echo "--> Current state of all app pods:"
+kubectl get pods -l app=django-app
+
+
+# --- Phase 3: Verify Green Version ---
+echo -e "\n${YELLOW}[3/4] Checking logs of the Green version for errors before switching...${NC}"
+# Get the name of one of the green pods
+GREEN_POD_NAME=$(kubectl get pods -l version=green -o jsonpath='{.items[0].metadata.name}')
+
+if [ -z "$GREEN_POD_NAME" ]; then
+    echo -e "${RED}Error: Could not find any Green pods to check logs.${NC}"
+    exit 1
+fi
+
+echo "--> Displaying logs for pod: ${GREEN_POD_NAME}"
+# Display the last 10 lines of logs. The command will fail if the pod has errors.
+kubectl logs --tail=10 ${GREEN_POD_NAME}
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error detected in Green deployment logs. Aborting traffic switch.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}--> No immediate errors found in Green version logs.${NC}"
+
+
+# --- Phase 4: Switch Traffic to Green ---
+echo -e "\n${YELLOW}[4/4] Atomically switching live traffic from Blue to Green...${NC}"
+# This command updates the service's selector to point to the green pods.
+kubectl patch service django-app-service -p '{"spec":{"selector":{"app":"django-app", "version":"green"}}}'
+
+echo "--> Verifying service selector has been updated..."
+# Grep for the version label in the service's YAML definition
+LIVE_VERSION=$(kubectl get svc django-app-service -o=jsonpath='{.spec.selector.version}')
+if [ "$LIVE_VERSION" == "green" ]; then
+    echo -e "${GREEN}--> Success! Traffic is now routed to the Green deployment.${NC}"
+else
+    echo -e "${RED}--> Error: Failed to switch traffic.${NC}"
+    exit 1
+fi
+
+# (Optional) You can open the service URL to manually verify
+echo -e "\nTo manually verify, run the following command and open the URL:"
+echo "minikube service django-app-service"
+
+# In a real pipeline, you would now monitor the green version and eventually
+# decommission the blue version with: kubectl delete deployment django-app-blue
+
+echo -e "\n${GREEN}### Blue-Green Deployment Complete ###${NC}"

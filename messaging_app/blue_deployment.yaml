@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # A specific name for the blue version
+  name: django-app-blue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: django-app
+      # Selector now includes the version
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: django-app
+        # Pods are labeled as blue
+        version: blue
+    spec:
+      containers:
+        - name: django-app
+          image: messaging-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: mysql-secrets
+          env:
+            - name: MYSQL_HOST
+              value: "mysql-service"
+            - name: DEPLOYMENT_COLOR
+              value: "blue" # An env var to identify this version

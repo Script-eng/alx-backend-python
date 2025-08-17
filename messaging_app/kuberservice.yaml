@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-app-service
+spec:
+  # Type NodePort makes the service accessible on a port on each node in the cluster.
+  # This is easier for testing in Minikube than ClusterIP.
+  type: NodePort
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: django-app
+    # IMPORTANT: Initially, traffic is directed to the blue deployment.
+    version: blue
