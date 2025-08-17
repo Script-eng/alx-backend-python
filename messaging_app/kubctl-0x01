@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# ==============================================================================
+# kubctl-0x01: A script to scale, load test, and monitor a Django deployment.
+# ==============================================================================
+
+# --- Define colors for better output ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# --- Define the name of our Django deployment ---
+DEPLOYMENT_NAME="django-app-deployment"
+SERVICE_NAME="django-app-service"
+APP_LABEL="app=django-app"
+
+echo -e "${GREEN}### Kubernetes App Scaling and Monitoring Script ###${NC}"
+
+# --- Step 0: Prerequisites Check ---
+echo -e "\n${YELLOW}[0/5] Checking for required tools (kubectl, wrk)...${NC}"
+if ! command -v wrk &> /dev/null; then
+    echo -e "${RED}Error: 'wrk' is not installed.${NC}"
+    echo "Please install it to perform load testing."
+    echo "macOS: brew install wrk"
+    echo "Ubuntu/Debian: sudo apt-get install wrk"
+    exit 1
+fi
+echo -e "${GREEN}--> All tools found.${NC}"
+
+
+# --- Step 1: Scale the Deployment ---
+echo -e "\n${YELLOW}[1/5] Scaling the Django deployment to 3 replicas...${NC}"
+
+kubectl scale deployment ${DEPLOYMENT_NAME} --replicas=3
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Failed to scale the deployment. Is '${DEPLOYMENT_NAME}' the correct name?${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}--> Scale command sent successfully.${NC}"
+
+
+# --- Step 2: Verify the Scaling ---
+echo -e "\n${YELLOW}[2/5] Verifying that 3 pods are running...${NC}"
+echo "Waiting for pods to become ready..."
+# Wait for the rollout to complete, with a timeout of 2 minutes
+kubectl rollout status deployment/${DEPLOYMENT_NAME} --timeout=120s
+
+echo -e "\n${GREEN}Final pod status:${NC}"
+kubectl get pods -l ${APP_LABEL}
+
+
+# --- Step 3: Set up Port Forwarding for Load Test ---
+echo -e "\n${YELLOW}[3/5] Setting up port-forwarding to the service...${NC}"
+# Start port-forwarding in the background
+kubectl port-forward service/${SERVICE_NAME} 8000:8000 &
+# Capture the Process ID (PID) of the background job
+PORT_FORWARD_PID=$!
+
+# Add a trap to ensure the port-forward is killed when the script exits
+trap "echo -e '\nCleaning up background processes...'; kill $PORT_FORWARD_PID" EXIT
+
+# Give it a moment to establish the connection
+sleep 2
+echo -e "${GREEN}--> Port-forwarding is active in the background (PID: $PORT_FORWARD_PID).${NC}"
+
+
+# --- Step 4: Perform Load Testing with wrk ---
+echo -e "\n${YELLOW}[4/5] Starting load test with wrk for 30 seconds...${NC}"
+echo "(4 threads, 100 connections)"
+
+wrk -t4 -c100 -d30s http://localhost:8000/
+
+echo -e "${GREEN}--> Load test complete.${NC}"
+
+
+# --- Step 5: Monitor Resource Usage with kubectl top ---
+echo -e "\n${YELLOW}[5/5] Monitoring resource usage after load test...${NC}"
+echo "Note: It can take a minute for metrics to become available."
+
+echo -e "\n${GREEN}--> Pod resource usage:${NC}"
+kubectl top pods -l ${APP_LABEL}
+
+echo -e "\n${GREEN}--> Node resource usage:${NC}"
+kubectl top node
+
+echo -e "\n${GREEN}### Script completed successfully! ###${NC}"
