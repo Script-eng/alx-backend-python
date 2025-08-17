@@ -1,0 +1,51 @@
+
+# Specifies the Docker Compose file format version.
+version: '3.8'
+
+# Defines the services (containers) that make up your application.
+services:
+  # The database service, using MySQL.
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    # This creates a named volume 'mysql_data' and mounts it to the directory
+    # where MySQL stores its data inside the container. This ensures data
+    # persists even if the container is removed.
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # Loads environment variables from the .env file to configure the database.
+    # The MySQL image uses these variables to initialize the database on first run.
+    env_file:
+      - ./.env
+    # A healthcheck ensures the 'web' service only starts after the database
+    # is fully ready to accept connections.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # The web service for your Django application.
+  web:
+    # Builds the Docker image from the Dockerfile in the current directory.
+    build: .
+    container_name: django_web
+    # The command to run when the container starts. This overrides the
+    # Dockerfile's CMD to ensure migrations are run before starting the server.
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    # Maps port 8000 on the host to port 8000 in the container.
+    ports:
+      - "8000:8000"
+    # Loads environment variables from the .env file.
+    env_file:
+      - ./.env
+    # Establishes a dependency. Docker Compose will start the 'db' service
+    # before starting the 'web' service and wait for its healthcheck to pass.
+    depends_on:
+      db:
+        condition: service_healthy
+
+# Defines the named volume for data persistence.
+volumes:
+  mysql_data:
