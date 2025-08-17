@@ -1,0 +1,150 @@
+# deployment.yaml
+
+# ===================================================================
+# 1. Secret: Stores sensitive data like passwords.
+# ===================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secrets
+type: Opaque
+stringData:
+  # IMPORTANT: Use the same credentials as in your .env file
+  MYSQL_DB: messaging_db
+  MYSQL_USER: messaging_user
+  MYSQL_PASSWORD: "supersecretpassword"
+  MYSQL_ROOT_PASSWORD: "rootsecretpassword"
+
+---
+# ===================================================================
+# 2. PersistentVolumeClaim: Requests storage for the database.
+# In Minikube, this will be automatically provisioned.
+# ===================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce # Can be mounted by a single node
+  resources:
+    requests:
+      storage: 1Gi # Request 1 Gigabyte of storage
+
+---
+# ===================================================================
+# 3. MySQL Deployment: Defines the desired state for our database.
+# ===================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+        envFrom: # Load environment variables from our Secret
+        - secretRef:
+            name: mysql-secrets
+        volumeMounts: # Mount the persistent storage
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes: # Link the volume to our PersistentVolumeClaim
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+
+---
+# ===================================================================
+# 4. MySQL Service: Exposes the database inside the cluster.
+# ===================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  # Type ClusterIP means this service is only reachable from within the cluster.
+  type: ClusterIP
+
+---
+# ===================================================================
+# 5. Django App Deployment: Defines the desired state for our app.
+# ===================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-app-deployment
+spec:
+  replicas: 2 # Let's run two pods for our app
+  selector:
+    matchLabels:
+      app: django-app
+  template:
+    metadata:
+      labels:
+        app: django-app
+    spec:
+      containers:
+      - name: django-app
+        image: messaging-app:latest # Use the image we loaded into Minikube
+        imagePullPolicy: IfNotPresent # Important: Prevents it from trying to pull from Docker Hub
+        ports:
+        - containerPort: 8000
+        env: # Define environment variables for the Django app
+          - name: MYSQL_DB
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secrets
+                key: MYSQL_DB
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secrets
+                key: MYSQL_USER
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secrets
+                key: MYSQL_PASSWORD
+          - name: MYSQL_HOST
+            value: "mysql-service" # The name of our MySQL Service
+          # You should also add your Django SECRET_KEY here, ideally from a secret
+          - name: SECRET_KEY
+            value: "your-django-secret-key-goes-here-in-a-real-app-use-a-secret"
+        command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+        # Note: In a real deployment, you would run migrations as a Job, not here.
+
+---
+# ===================================================================
+# 6. Django App Service: Exposes our Django App.
+# ===================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-app-service
+spec:
+  selector:
+    app: django-app
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  # Type ClusterIP means we need to use port-forwarding to access it from our machine.
+  type: ClusterIP
