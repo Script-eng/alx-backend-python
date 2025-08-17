@@ -1,25 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # A specific name for the blue version
-  name: django-app-blue
+  name: django-app-blue # The name remains the same
 spec:
   replicas: 2
+  # The strategy is RollingUpdate by default, we can make it explicit
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
   selector:
     matchLabels:
       app: django-app
-      # Selector now includes the version
       version: blue
   template:
     metadata:
       labels:
         app: django-app
-        # Pods are labeled as blue
         version: blue
     spec:
       containers:
         - name: django-app
-          image: messaging-app:latest
+          # --- MODIFICATION 1: Update the image tag ---
+          image: messaging-app:2.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -29,5 +33,6 @@ spec:
           env:
             - name: MYSQL_HOST
               value: "mysql-service"
+            # --- MODIFICATION 2: Update the version identifier ---
             - name: DEPLOYMENT_COLOR
-              value: "blue" # An env var to identify this version
+              value: "blue-v2"
