@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# ==============================================================================
+# kurbeScript: A script to start and verify a local Kubernetes cluster
+# using Minikube.
+# ==============================================================================
+
+# --- Define colors for better output ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}### Kubernetes Local Cluster Management Script ###${NC}"
+
+# --- Step 1: Verify Prerequisites ---
+echo -e "\n${YELLOW}[1/4] Checking for required tools (minikube and kubectl)...${NC}"
+
+# Check if minikube is installed
+if ! command -v minikube &> /dev/null; then
+    echo -e "${RED}Error: Minikube is not installed or not in your PATH.${NC}"
+    echo "Please follow the installation guide: https://minikube.sigs.k8s.io/docs/start/"
+    exit 1
+fi
+
+# Check if kubectl is installed
+if ! command -v kubectl &> /dev/null; then
+    echo -e "${RED}Error: kubectl is not installed or not in your PATH.${NC}"
+    echo "Please follow the installation guide: https://kubernetes.io/docs/tasks/tools/install-kubectl/"
+    exit 1
+fi
+
+echo -e "${GREEN}--> All required tools are installed.${NC}"
+
+
+# --- Step 2: Start the Minikube Cluster ---
+echo -e "\n${YELLOW}[2/4] Starting the Minikube cluster...${NC}"
+echo "This might take a several minutes, especially on the first run."
+
+# The `minikube start` command is idempotent. If the cluster is already
+# running, it will confirm this without error.
+minikube start
+
+# Check the exit code of the last command to see if it was successful
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Failed to start the Minikube cluster.${NC}"
+    echo "Try running 'minikube start' manually to diagnose the issue."
+    exit 1
+fi
+
+echo -e "${GREEN}--> Minikube cluster is running.${NC}"
+
+
+# --- Step 3: Verify the Cluster with kubectl ---
+echo -e "\n${YELLOW}[3/4] Verifying cluster status using 'kubectl cluster-info'...${NC}"
+
+kubectl cluster-info
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: kubectl failed to get cluster information.${NC}"
+    echo "This might indicate a problem with the cluster or your kubeconfig file."
+    exit 1
+fi
+
+
+# --- Step 4: Retrieve Available Pods ---
+echo -e "\n${YELLOW}[4/4] Retrieving all available pods in the cluster...${NC}"
+# Use the --all-namespaces flag (-A) to see all pods, including system pods.
+# On a new cluster, there might be no pods in the 'default' namespace.
+kubectl get pods --all-namespaces
+
+echo -e "\n${GREEN}### Script completed successfully! ###${NC}"
