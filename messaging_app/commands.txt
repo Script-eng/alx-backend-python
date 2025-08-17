@@ -1,0 +1,2 @@
+# Command to apply the Ingress resource configuration to the Kubernetes cluster.
+kubectl apply -f ingress.yaml

@@ -1,0 +1,29 @@
+# ingress.yaml
+
+# Defines the API version for an Ingress resource.
+apiVersion: networking.k8s.io/v1
+# Specifies that this resource is an Ingress.
+kind: Ingress
+metadata:
+  # The name of our Ingress resource.
+  name: django-ingress
+spec:
+  # This specifies which Ingress Controller will handle this Ingress.
+  # The Minikube addon creates a controller with the class name "nginx".
+  ingressClassName: nginx
+  # A list of routing rules.
+  rules:
+    - host: messaging.app.local # A custom, local-only domain name for our app.
+      http:
+        paths:
+          # This rule matches traffic for the root path "/".
+          - path: /
+            pathType: Prefix # Matches any URL that starts with "/"
+            backend:
+              # The traffic will be sent to a Service.
+              service:
+                # The name of the Service for our Django app (from deployment.yaml).
+                name: django-app-service
+                # The port on that Service to send traffic to.
+                port:
+                  number: 8000
