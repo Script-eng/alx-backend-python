@@ -1,87 +1,49 @@
 pipeline {
+    // 1. Agent Declaration: Run on any available agent
     agent any
 
+    // 2. Tools Section: Use the Python installation we configured
     tools {
-        python 'python3' // Matches the name in Manage Jenkins > Tools
+        python 'python3' // This name must match the one in Manage Jenkins > Tools
     }
 
-    // Define environment variables used throughout the pipeline
-    environment {
-        // Use the Jenkins credentials store to get the Docker Hub username securely
-        // The ID must match the one you created in Jenkins for Docker Hub
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-        DOCKER_IMAGE_NAME = "${DOCKERHUB_CREDENTIALS_USR}/messaging-app"
-    }
-
+    // 3. Stages of the Pipeline
     stages {
-        // STAGE 1: Checkout code from GitHub (No changes)
+        // STAGE 1: Checkout code from GitHub
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
+                // 'credentialsId' must match the ID you created in Jenkins
                 git branch: 'main',
                     credentialsId: 'github-credentials',
-                    url: 'https://github.com/Script-eng/alx-backend-python.git' // UPDATE THIS URL messaging_app
+                    url: 'https://github.com/Script-eng/alx-backend-python.git'
             }
         }
 
-        // STAGE 2: Install Dependencies (No changes)
+        // STAGE 2: Install dependencies
         stage('Install Dependencies') {
             steps {
-                // Change directory to where requirements.txt is located
-                dir('messaging_app') {
-                    echo 'Installing Python dependencies...'
-                    sh 'pip install -r requirements.txt'
-                }
+                echo 'Installing Python dependencies...'
+                sh 'pip install -r requirements.txt'
             }
         }
 
-        // STAGE 3: Run Tests (Minor path change if needed)
+        // STAGE 3: Run Tests and Generate Report
         stage('Run Tests') {
             steps {
-                dir('messaging_app') {
-                    echo 'Running tests with pytest...'
-                    sh 'pytest --junitxml=test-report.xml'
-                }
-            }
-        }
-
-        // NEW STAGE 4: Build Docker Image
-        stage('Build Docker Image') {
-            steps {
-                dir('messaging_app') { // Ensure commands run where the Dockerfile is
-                    echo "Building Docker image: ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
-                    // The -t flag tags the image with a name and version
-                    sh "docker build -t ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} ."
-                    sh "docker tag ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} ${DOCKER_IMAGE_NAME}:latest"
-                }
-            }
-        }
-
-        // NEW STAGE 5: Push Docker Image
-        stage('Push Docker Image') {
-            steps {
-                echo "Pushing Docker image to Docker Hub..."
-                // Use the withCredentials wrapper for secure handling of username/password
-                // DOCKERHUB_CREDENTIALS_USR and DOCKERHUB_CREDENTIALS_PSW are injected by Jenkins
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                    sh "docker push ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
-                    sh "docker push ${DOCKER_IMAGE_NAME}:latest"
-                }
+                echo 'Running tests with pytest...'
+                // Generate a JUnit XML report for Jenkins to parse
+                sh 'pytest --junitxml=test-report.xml'
             }
         }
     }
 
-    // Post-build actions
+    // 4. Post-build Actions: Always run regardless of stage success or failure
     post {
         always {
-            dir('messaging_app') {
-                echo 'Archiving test results...'
-                junit 'test-report.xml'
-            }
-            // Always log out from Docker Hub
-            echo 'Logging out from Docker Hub...'
-            sh 'docker logout'
+            echo 'Archiving test results...'
+            // Use the junit plugin to publish the generated test report
+            junit 'test-report.xml'
         }
     }
 }
